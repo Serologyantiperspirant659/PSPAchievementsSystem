@@ -22,4 +22,5 @@ pach_log.txt
 pach_test.txt
 
 build_log.txt
+command.txt
 *.jsonl
