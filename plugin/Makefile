@@ -10,7 +10,8 @@ USE_KERNEL_LIBS = 1
 INCDIR = src
 CFLAGS = -O2 -G0 -Wall -Wextra -std=c99
 LDFLAGS =
-LIBS = -lpspdisplay -lpspctrl
+# Добавили -lpsprtc для работы со временем!
+LIBS = -lpspdisplay -lpspctrl -lpsprtc
 
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak

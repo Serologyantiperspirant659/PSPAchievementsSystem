@@ -1,6 +1,8 @@
 #ifndef FORMAT_H
 #define FORMAT_H
-#define PACH_VERSION            2
+
+/* Версия 3: Добавлено сохранение времени получения ачивки (Timestamps) */
+#define PACH_VERSION            3
 #define PACH_GAME_MAGIC_0       'P'
 #define PACH_GAME_MAGIC_1       'A'
 #define PACH_GAME_MAGIC_2       'C'
@@ -9,6 +11,7 @@
 #define PACH_PROFILE_MAGIC_1    'P'
 #define PACH_PROFILE_MAGIC_2    'R'
 #define PACH_PROFILE_MAGIC_3    'F'
+
 #define PACH_MAX_TITLE_LEN      48
 #define PACH_MAX_DESC_LEN       96
 #define PACH_MAX_GAME_CODE_LEN  16
@@ -43,7 +46,8 @@ typedef struct {
 typedef struct {
     int game_id;
     int num_achievements;
-    unsigned char unlocked[PACH_MAX_GAME_ACH];
+    /* ТЕПЕРЬ ХРАНИМ ВРЕМЯ (Unix Timestamp). 0 = заблокировано */
+    unsigned int unlock_time[PACH_MAX_GAME_ACH];
 } PACH_ProfileGameProgress;
 
 typedef struct {
@@ -52,4 +56,4 @@ typedef struct {
     char ach_file[32];
 } PACH_GameMapEntry;
 
-#endif
+#endif /* FORMAT_H */

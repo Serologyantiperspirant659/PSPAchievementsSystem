@@ -1,6 +1,5 @@
 #include <pspkernel.h>
 #include <pspdisplay.h>
-#include <pspiofilemgr.h>
 #include <string.h>
 
 #include "popup.h"
@@ -62,7 +61,6 @@ static const unsigned char font_data[95][8] = {
     {0x31,0x6B,0x46,0x00,0x00,0x00,0x00,0x00},
 };
 
-/* ---- 16-BIT DRAWING ---- */
 static unsigned short make_565(unsigned int r, unsigned int g, unsigned int b) {
     return (unsigned short)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
 }
@@ -102,55 +100,10 @@ static void draw_text_16(unsigned short *fb, int bw, int x, int y, unsigned shor
     }
 }
 
-/* ---- 32-BIT DRAWING ---- */
-static void fill_rect_32(unsigned int *fb, int bw, int x, int y, int w, int h, unsigned int c) {
-    for (int ry = 0; ry < h; ry++) {
-        int py = y + ry;
-        if (py < 0 || py >= 272) continue;
-        for (int rx = 0; rx < w; rx++) {
-            int px = x + rx;
-            if (px < 0 || px >= 480) continue;
-            fb[py * bw + px] = c;
-        }
-    }
-}
-
-static void draw_text_32(unsigned int *fb, int bw, int x, int y, unsigned int c, const char *s) {
-    int cx = x;
-    while (*s) {
-        if (*s >= 32 && *s <= 126) {
-            int idx = *s - 32;
-            for (int r = 0; r < 8; r++) {
-                unsigned char row = font_data[idx][r];
-                if (!row) continue;
-                int py = y + r;
-                if (py < 0 || py >= 272) continue;
-                for (int col = 0; col < 8; col++) {
-                    if (row & (0x80 >> col)) {
-                        int px = cx + col;
-                        if (px >= 0 && px < 480) fb[py * bw + px] = c;
-                    }
-                }
-            }
-        }
-        cx += 8;
-        s++;
-    }
-}
-
-/* ---- DRAW POPUP ---- */
 static void draw_popup(void *fb, int bw, int pf, int y, const char *title, const char *desc) {
     int x = 52, w = 376, h = 46;
 
-    if (pf == 3) {
-        unsigned int *fb32 = (unsigned int *)fb;
-        fill_rect_32(fb32, bw, x, y, w, h, 0xFF101010);
-        fill_rect_32(fb32, bw, x, y, w, 2, 0xFFFFC95C);
-        fill_rect_32(fb32, bw, x, y+h-2, w, 2, 0xFFFFC95C);
-        draw_text_32(fb32, bw, x+10, y+7,  0xFF6AC4EF, "ACHIEVEMENT UNLOCKED");
-        draw_text_32(fb32, bw, x+10, y+19, 0xFFFFFFFF, title);
-        draw_text_32(fb32, bw, x+10, y+31, 0xFFD0D0D0, desc);
-    } else {
+    if (pf == 0) { /* 16-bit 565 - Most games use this */
         unsigned short *fb16 = (unsigned short *)fb;
         unsigned short black  = make_565(16, 16, 16);
         unsigned short gold   = make_565(255, 201, 92);
@@ -167,8 +120,6 @@ static void draw_popup(void *fb, int bw, int pf, int y, const char *title, const
     }
 }
 
-/* ---- PUBLIC API ---- */
-
 void pach_popup_init(void) {
     popup_active = 0;
     popup_y = -50;
@@ -178,8 +129,8 @@ void pach_popup_init(void) {
 }
 
 void pach_popup_show(const char *title, const char *desc) {
-    if (!title) { title = ""; }
-    if (!desc)  { desc  = ""; }
+    if (!title) title = "";
+    if (!desc)  desc  = "";
     strncpy(popup_title, title, sizeof(popup_title) - 1);
     popup_title[sizeof(popup_title) - 1] = '\0';
     strncpy(popup_desc, desc, sizeof(popup_desc) - 1);
@@ -206,12 +157,6 @@ void pach_popup_draw_current(void) {
     void *fb = 0;
     int bw = 512, pf = 3;
 
-    /* Render on NEXTFRAME to avoid flickering */
-    sceDisplayGetFrameBuf(&fb, &bw, &pf, PSP_DISPLAY_SETBUF_NEXTFRAME);
-    if (fb) draw_popup(fb, bw, pf, popup_y, popup_title, popup_desc);
-
-    /* Also render on IMMEDIATE (current buffer) for double-buffering */
-    fb = 0;
     sceDisplayGetFrameBuf(&fb, &bw, &pf, PSP_DISPLAY_SETBUF_IMMEDIATE);
     if (fb) draw_popup(fb, bw, pf, popup_y, popup_title, popup_desc);
 }

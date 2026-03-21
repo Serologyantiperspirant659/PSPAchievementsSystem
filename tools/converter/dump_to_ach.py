@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json, struct, sys, os
 
-PACH_VERSION = 2
+PACH_VERSION = 3
 MAX_TITLE = 48
 MAX_DESC = 96
 MAX_CODE = 16
