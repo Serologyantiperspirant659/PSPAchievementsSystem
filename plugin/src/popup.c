@@ -219,6 +219,17 @@ static void draw_popup(void *fb, int bw, int pf, int y, const char *title, const
 }
 
 /* ============================================================
+ * MULTI-BUFFER TRACKING
+ * Games use double/triple buffering. We must draw the popup on
+ * ALL framebuffers to prevent flickering.
+ * ============================================================ */
+#define MAX_TRACKED_FBS 3
+static void *g_tracked_fb[MAX_TRACKED_FBS];
+static int   g_tracked_bw[MAX_TRACKED_FBS];
+static int   g_tracked_pf[MAX_TRACKED_FBS];
+static int   g_fb_count = 0;
+
+/* ============================================================
  * EXPORTED API
  * ============================================================ */
 
@@ -229,6 +240,8 @@ void pach_popup_init(void) {
     popup_start_time = 0;
     g_queue_head     = 0;
     g_queue_tail     = 0;
+    g_fb_count       = 0;
+    memset(g_tracked_fb, 0, sizeof(g_tracked_fb));
     memset(popup_title, 0, sizeof(popup_title));
     memset(popup_desc,  0, sizeof(popup_desc));
 }
@@ -292,15 +305,46 @@ void pach_popup_update(void) {
     }
 }
 
+static void track_framebuffer(void *fb, int bw, int pf) {
+    int i;
+    if (!fb) return;
+    for (i = 0; i < g_fb_count; i++) {
+        if (g_tracked_fb[i] == fb) {
+            g_tracked_bw[i] = bw;
+            g_tracked_pf[i] = pf;
+            return;
+        }
+    }
+    if (g_fb_count < MAX_TRACKED_FBS) {
+        g_tracked_fb[g_fb_count] = fb;
+        g_tracked_bw[g_fb_count] = bw;
+        g_tracked_pf[g_fb_count] = pf;
+        g_fb_count++;
+    }
+}
+
 void pach_popup_draw_current(void) {
+    int i;
+    void *fb0 = NULL, *fb1 = NULL;
+    int bw0 = 512, pf0 = 3;
+    int bw1 = 512, pf1 = 3;
+
     if (!popup_active) return;
     if (popup_y < -48) return;
 
-    void *fb = NULL;
-    int bw = 512, pf = 3;
+    /* Query both buffer slots to discover all framebuffers quickly */
+    sceDisplayGetFrameBuf(&fb0, &bw0, &pf0, PSP_DISPLAY_SETBUF_IMMEDIATE);
+    sceDisplayGetFrameBuf(&fb1, &bw1, &pf1, PSP_DISPLAY_SETBUF_NEXTFRAME);
+    track_framebuffer(fb0, bw0, pf0);
+    track_framebuffer(fb1, bw1, pf1);
 
-    sceDisplayGetFrameBuf(&fb, &bw, &pf, PSP_DISPLAY_SETBUF_IMMEDIATE);
-    if (fb) draw_popup(fb, bw, pf, popup_y, popup_title, popup_desc);
+    /* Draw on ALL known framebuffers so every swapped buffer has the popup */
+    for (i = 0; i < g_fb_count; i++) {
+        if (g_tracked_fb[i]) {
+            draw_popup(g_tracked_fb[i], g_tracked_bw[i], g_tracked_pf[i],
+                       popup_y, popup_title, popup_desc);
+        }
+    }
 }
 
 int pach_popup_is_active(void) {

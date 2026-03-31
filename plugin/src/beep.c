@@ -4,150 +4,134 @@
 #include "beep.h"
 
 /* ============================================================
- * PSP CPU-generated beep using sceAudio output channel.
+ * Achievement unlock beep — kernel-mode safe.
  *
- * Generates a simple two-tone "achievement chime" using a
- * square wave synthesized directly in a kernel thread.
- * No audio files needed - pure CPU generation.
+ * Uses libpspaudio_driver which provides kernel-callable
+ * versions of sceAudioChReserve / sceAudioOutputBlocking /
+ * sceAudioChRelease.
  *
- * Audio format: 44100 Hz, 16-bit stereo (PSP hardware default)
+ * Generates a short two-tone chime (~880Hz + ~1047Hz)
+ * played in a dedicated thread to avoid blocking the caller.
  * ============================================================ */
 
-#define BEEP_SAMPLE_RATE    44100
-#define BEEP_SAMPLES        512     /* One audio block size */
-#define BEEP_CHANNEL        0       /* PSP audio output channel 0-7 */
+#define BEEP_SAMPLE_RATE   44100
+#define BEEP_SAMPLES       1024   /* per output call — PSP requires 64-aligned */
+#define BEEP_DURATION_MS   180    /* total beep length */
+#define BEEP_VOLUME        0x6000 /* 75% volume */
 
-/* Two-tone chime: first note then second note */
-#define TONE1_FREQ          880     /* A5 - first note (Hz) */
-#define TONE2_FREQ          1109    /* C#6 - second note (Hz) */
-#define TONE1_DURATION_MS   120
-#define TONE2_DURATION_MS   200
-#define BEEP_AMPLITUDE      18000   /* Volume 0..32767 - raised for audibility */
+/* Simple 16-bit stereo sine approximation using integer math.
+ * We avoid libm/floats — use a small lookup table instead. */
+static const short sine_table[16] = {
+    0, 12539, 23170, 30273, 32767, 30273, 23170, 12539,
+    0, -12539, -23170, -30273, -32767, -30273, -23170, -12539
+};
 
-/* Audio buffer: stereo 16-bit = 4 bytes per sample */
-static short g_audio_buf[BEEP_SAMPLES * 2];
+static volatile int g_beep_channel = -1;
+static volatile int g_beep_pending = 0;
+static SceUID       g_beep_thid    = -1;
+static volatile int g_beep_running = 0;
 
-static volatile int g_beep_requested = 0;
-static volatile int g_beep_running   = 0;
-static SceUID       g_beep_thid      = -1;
-static int          g_channel        = -1;
-
-/* ============================================================
- * Square wave generator
- * freq  - frequency in Hz
- * t     - current sample index (absolute, for phase continuity)
- * rate  - sample rate
- * amp   - amplitude (0..32767)
- * ============================================================ */
-static short square_wave(int freq, int t, int rate, int amp)
+/* Generate a tone by stepping through the 16-entry sine table.
+ * phase_acc and phase_step are in 16.16 fixed point.
+ * Fills interleaved stereo buffer (L, R, L, R, ...). */
+static void gen_tone(short *buf, int num_samples,
+                     unsigned int *phase_acc, unsigned int phase_step,
+                     int volume)
 {
-    int period = rate / freq;
-    if (period <= 0) return 0;
-    int phase = t % period;
-    return (phase < period / 2) ? (short)amp : (short)(-amp);
+    int i;
+    for (i = 0; i < num_samples; i++) {
+        int idx = (*phase_acc >> 16) & 0xF;   /* 0-15 */
+        int val = (sine_table[idx] * volume) >> 15;
+        short s = (short)val;
+        buf[i * 2]     = s;  /* L */
+        buf[i * 2 + 1] = s;  /* R */
+        *phase_acc += phase_step;
+    }
 }
 
-/* ============================================================
- * Beep thread: runs the audio output loop
- * ============================================================ */
 static int beep_thread_func(SceSize args, void *argp)
 {
     (void)args; (void)argp;
-
-    int tone1_samples = (BEEP_SAMPLE_RATE * TONE1_DURATION_MS) / 1000;
-    int tone2_samples = (BEEP_SAMPLE_RATE * TONE2_DURATION_MS) / 1000;
-    int total_samples = tone1_samples + tone2_samples;
+    short buf[BEEP_SAMPLES * 2];  /* stereo */
 
     while (g_beep_running) {
-        /* Wait for a beep request */
-        if (!g_beep_requested) {
-            sceKernelDelayThread(5000); /* Check every 5ms */
+        if (!g_beep_pending) {
+            sceKernelDelayThread(50 * 1000);  /* 50ms idle poll */
             continue;
         }
-        g_beep_requested = 0;
+        g_beep_pending = 0;
 
-        /* Play the chime */
-        int t = 0;
-        while (t < total_samples) {
-            int block_t = 0;
-            while (block_t < BEEP_SAMPLES && t < total_samples) {
-                int freq = (t < tone1_samples) ? TONE1_FREQ : TONE2_FREQ;
-                short s = square_wave(freq, t, BEEP_SAMPLE_RATE, BEEP_AMPLITUDE);
-                g_audio_buf[block_t * 2]     = s; /* Left  channel */
-                g_audio_buf[block_t * 2 + 1] = s; /* Right channel */
-                block_t++;
-                t++;
+        /* Reserve audio channel */
+        int ch = sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL,
+                                   BEEP_SAMPLES,
+                                   PSP_AUDIO_FORMAT_STEREO);
+        if (ch < 0) continue;
+
+        /* Tone 1: ~880 Hz for 100ms  (A5 note) */
+        /* phase_step = (freq / SAMPLE_RATE) * 16 * 65536 */
+        /* 880 / 44100 * 16 * 65536 = ~20971 */
+        {
+            unsigned int phase = 0;
+            unsigned int step = (880u * 16u * 65536u) / BEEP_SAMPLE_RATE;
+            int total_samples = (BEEP_SAMPLE_RATE * 100) / 1000; /* 100ms */
+            int remaining = total_samples;
+
+            while (remaining > 0) {
+                int count = (remaining > BEEP_SAMPLES) ? BEEP_SAMPLES : remaining;
+                memset(buf, 0, sizeof(buf));
+                gen_tone(buf, count, &phase, step, BEEP_VOLUME);
+                sceAudioOutputBlocking(ch, PSP_AUDIO_VOLUME_MAX, buf);
+                remaining -= count;
             }
-            /* Zero-pad the rest of the last block */
-            while (block_t < BEEP_SAMPLES) {
-                g_audio_buf[block_t * 2]     = 0;
-                g_audio_buf[block_t * 2 + 1] = 0;
-                block_t++;
-            }
-            /* Send block to hardware - blocks until consumed (precise timing) */
-            sceAudioOutputBlocking(g_channel, PSP_AUDIO_VOLUME_MAX / 2, g_audio_buf);
         }
-        /* One extra silent block to cleanly end the sound */
-        memset(g_audio_buf, 0, sizeof(g_audio_buf));
-        sceAudioOutputBlocking(g_channel, PSP_AUDIO_VOLUME_MAX / 2, g_audio_buf);
+
+        /* Tone 2: ~1047 Hz for 80ms  (C6 note) */
+        {
+            unsigned int phase = 0;
+            unsigned int step = (1047u * 16u * 65536u) / BEEP_SAMPLE_RATE;
+            int total_samples = (BEEP_SAMPLE_RATE * 80) / 1000; /* 80ms */
+            int remaining = total_samples;
+
+            while (remaining > 0) {
+                int count = (remaining > BEEP_SAMPLES) ? BEEP_SAMPLES : remaining;
+                memset(buf, 0, sizeof(buf));
+                gen_tone(buf, count, &phase, step, BEEP_VOLUME);
+                sceAudioOutputBlocking(ch, PSP_AUDIO_VOLUME_MAX, buf);
+                remaining -= count;
+            }
+        }
+
+        sceAudioChRelease(ch);
     }
 
     sceKernelExitDeleteThread(0);
     return 0;
 }
 
-/* ============================================================
- * Public API
- * ============================================================ */
 int pach_beep_init(void)
 {
-    /* Reserve PSP audio channel */
-    g_channel = sceAudioChReserve(BEEP_CHANNEL, BEEP_SAMPLES, PSP_AUDIO_FORMAT_STEREO);
-    if (g_channel < 0) {
-        /* Try any free channel if channel 0 is taken */
-        g_channel = sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL, BEEP_SAMPLES, PSP_AUDIO_FORMAT_STEREO);
-        if (g_channel < 0) return 0;
-    }
-
-    memset(g_audio_buf, 0, sizeof(g_audio_buf));
-    g_beep_requested = 0;
-    g_beep_running   = 1;
-
-    /* Start the dedicated beep thread at very low priority */
-    g_beep_thid = sceKernelCreateThread(
-        "pach_beep",
-        beep_thread_func,
-        0x50,           /* Low priority - lower than draw thread (0x40) */
-        0x2000,         /* 8KB stack */
-        0, 0
-    );
-    if (g_beep_thid < 0) {
-        sceAudioChRelease(g_channel);
-        g_channel = -1;
-        return 0;
-    }
-
-    sceKernelStartThread(g_beep_thid, 0, 0);
+    g_beep_running = 1;
+    g_beep_pending = 0;
+    g_beep_thid = sceKernelCreateThread("pach_beep",
+                                         beep_thread_func,
+                                         0x30,    /* same priority as logic */
+                                         0x2000,  /* 8KB stack */
+                                         0, 0);
+    if (g_beep_thid < 0) return 0;
+    sceKernelStartThread(g_beep_thid, 0, NULL);
     return 1;
 }
 
 void pach_beep_play(void)
 {
-    if (g_channel < 0 || !g_beep_running) return;
-    g_beep_requested = 1;
+    g_beep_pending = 1;
 }
 
 void pach_beep_shutdown(void)
 {
-    g_beep_running   = 0;
-    g_beep_requested = 0;
-
+    g_beep_running = 0;
     if (g_beep_thid >= 0) {
         sceKernelWaitThreadEnd(g_beep_thid, NULL);
         g_beep_thid = -1;
-    }
-    if (g_channel >= 0) {
-        sceAudioChRelease(g_channel);
-        g_channel = -1;
     }
 }

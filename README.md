@@ -1,78 +1,117 @@
-# PSP Achievements System (ARK-4)
+# 🏆 PSP Achievements (ARK-4)
 
-A custom PRX plugin for the Sony PSP that brings the magic of [RetroAchievements](https://retroachievements.org/) to actual, physical PSP hardware. 
+> Unlock achievements on real PSP hardware — completely offline.
 
-This plugin evaluates complex RA logic (including Delta, HitCounts, ResetIf, PauseIf, and Alternate groups) in real-time by reading the game's RAM, completely offline.
+A kernel-mode PRX plugin that brings [RetroAchievements](https://retroachievements.org/)-style trophies to the Sony PSP. It evaluates achievement logic in real-time by reading game RAM, with no network connection required.
 
-## ✨ Features (Alpha)
+---
 
-* **Real-Time Evaluation:** A lightweight, custom-built logic parser runs alongside the game.
-* **In-Game Popups:** Custom trophy-like notifications rendered directly to the PSP's framebuffer (supports both 32-bit and 16-bit color formats).
-* **Low Memory Footprint:** Optimized to fit within the strict RAM limits of the PSP (runs smoothly alongside heavy games).
-* **Game Auto-Detection:** Automatically detects the running game ID (e.g., `ULUS10285`).
+## ✨ Features
+
+| | |
+|---|---|
+| 🎯 **Real-Time Evaluation** | Custom logic parser runs alongside the game with zero lag |
+| 🖼 **In-Game Popups** | Trophy-style notifications rendered directly to the framebuffer |
+| 💾 **Tiny Footprint** | Runs smoothly even alongside heavy games like God of War |
+| 🔍 **Auto-Detection** | Identifies the running game automatically |
+| 📴 **Fully Offline** | No Wi-Fi, no server — everything runs locally |
+| 💿 **Persistent Profile** | Progress saved to Memory Stick across sessions |
+
+<details>
+<summary><strong>Supported RA Logic</strong></summary>
+
+- **Conditions:** Delta, Prior, HitCounts, ResetIf, PauseIf, AndNext, OrNext, AddSource, SubSource, AddAddress, ResetNextIf, Trigger, Measured, MeasuredIf
+- **Groups:** Core + Alternate group evaluation
+- **Memory Sizes:** 8-bit, 16-bit, 24-bit, 32-bit, Bit0–Bit7, Float LE, Float BE
+
+</details>
+
+---
 
 ## 🎮 Supported Games
 
-Currently used as a proof-of-concept for:
-* **Silent Hill: Origins (USA)** - `ULUS10285` (RA Game ID: `3927`)
-  * *Status:* Working (Popups trigger accurately on memory state changes).
+<details>
+<summary><strong>Click to expand game list</strong></summary>
+
+| Game | Region | Game Code | Achievements | Status |
+|------|--------|-----------|--------------|--------|
+| God of War: Chains of Olympus | EUR | `UCES00842` | 39 | ✅ Working |
+| Silent Hill: Origins | USA | `ULUS10285` | 28 | ✅ Working |
+
+</details>
+
+---
 
 ## 📥 Installation
 
-1. Install the **ARK-4** custom firmware on your PSP.
+1. Install **ARK-4** custom firmware on your PSP.
 2. Download the latest release.
-3. Copy `PspAchievements.prx` to your `ms0:/seplugins/` folder.
-4. Copy the data files to the root of your memory stick:
-   ```text
-   ms0:/
-   ├── seplugins/
-   │   └── PspAchievements.prx
-   └── PSP/
-       └── ACH/
-           ├── game_map.dat
-           └── games/
-               └── 3927.ach
-5. Enable the plugin in the ARK-4 Recovery Menu (game, ms0:/seplugins/PspAchievements.prx, on).
-6. Launch the game!
+3. Copy files to your Memory Stick:
+
+```
+ms0:/
+├── seplugins/
+│   └── PspAchievements.prx
+└── PSP/
+    └── ACH/
+        ├── game_map.dat
+        └── games/
+            ├── 3927.ach
+            └── 26296.ach
+```
+
+4. Enable the plugin in ARK-4 Recovery Menu:  
+   `game, ms0:/seplugins/PspAchievements.prx, on`
+5. Launch your game and enjoy!
+
+---
 
 ## 🛠 Building from Source
-You need the PSPSDK installed.
-~~~
+
+Requires [PSPSDK](https://github.com/pspdev/pspsdk).
+
+```bash
 cd plugin
-make clean
-make
-~~~
+make clean && make
+```
 
-## Converting RA Data
-To add new games, use the provided Python script to convert a RetroAchievements JSONL dump into the optimized .ach binary format used by the plugin:
-
-~~~
-python3 tools/converter/dump_to_ach.py tools/converter/ppsspp_ra_dump.jsonl ULUS10285 3927 data/games/3927.ach
-~~~
+---
 
 ## 🗺 Architecture
 
-* **main.c:** Thread management, popup loop, and game detection.
-* **rcheevos_glue.c:** The core logic evaluator. Parses RA syntax and tracks delta/prior memory states.
-* **memory.c:** Safe RAM access mapped to RA's 0x08000000 structure.
-* **popup.c:** Direct framebuffer rendering (double-buffered) without interrupting the game's graphics pipeline.
+| Module | Description |
+|--------|-------------|
+| `main.c` | Thread management, game detection, main loop |
+| `rcheevos_glue.c` | Core logic evaluator — parses RA syntax, tracks delta/prior states |
+| `memory.c` | Safe kernel-mode RAM access via kseg0 with 25-bit address masking |
+| `popup.c` | Direct framebuffer rendering without interrupting game graphics |
+| `profile.c` | Achievement progress persistence to Memory Stick |
+| `game_map.c` | UMD game code → achievement data file mapping |
+
+---
 
 ## 🚀 Roadmap
 
- - [x] Base RA logic parsing
- - [x] Framebuffer popup rendering
- - [x] Fix memory leaks & RAM limits
- - [ ] Save/Load User Profile progress (Next update!)
+- [x] Base RA logic parsing
+- [x] Framebuffer popup rendering
+- [x] Memory safety & RAM limits
+- [x] Save/Load profile progress
+- [x] Float (LE/BE) support
+- [x] Bit-level memory reads (Bit0–Bit7)
+- [x] ADD_ADDRESS pointer chains
+- [x] Delta & Prior snapshot tracking
+- [ ] Audio notification on unlock
+- [ ] Support more games
 
+---
 
 ## 🙏 Credits
 
-### Special Thanks
+- **[RetroAchievements](https://retroachievements.org/)** — Achievement definitions and community
+- **[PPSSPP](https://www.ppsspp.org/)** — Emulator used for development and testing
+- **[PSPSDK](https://github.com/pspdev/pspsdk)** — PSP development framework
 
-- **[RetroAchievements](https://retroachievements.org/)** - Achievement data and definitions
-- **[PPSSPP Team](https://www.ppsspp.org/)** - Emulator and memory dump tools
-- **[Universus](https://retroachievements.org/user/Universus)** - Achievement set creator
-- **[PSPSDK Contributors](https://github.com/pspdev/pspsdk)** - PSP development framework
+---
 
 ## 📄 License
 

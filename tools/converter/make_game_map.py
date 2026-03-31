@@ -15,7 +15,7 @@ MAX_FILE = 32
 
 GAMES = [
     ("ULUS10285", 3927, "3927.ach"),   # SH Origins USA
-    ("ULES00869", 3927, "3927.ach"),   # SH Origins EUR
+    ("UCES00842", 26296, "26296.ach"),  # God of War: Chains of Olympus EUR
 ]
 
 def pad(s, length):

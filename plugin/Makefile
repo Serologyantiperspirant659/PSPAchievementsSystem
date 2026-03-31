@@ -13,7 +13,7 @@ INCDIR = src
 CFLAGS = -O2 -G0 -Wall -Wextra -std=c99
 LDFLAGS =
 # Added -lpspaudio for CPU-generated beep sound
-LIBS = -lpspdisplay -lpspctrl -lpsprtc -lpspaudio
+LIBS = -lpspdisplay -lpspctrl -lpsprtc -lpspaudio_driver
 
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
