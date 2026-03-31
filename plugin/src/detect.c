@@ -43,11 +43,9 @@ int pach_detect_game_code(char *out_code, int max_len)
 
     memset(out_code, 0, max_len);
 
-    if (detect_from_umd_data(out_code, max_len))
-        return 1;
-
-    /* Fallback for testing */
-    strncpy(out_code, "ULUS10285", max_len - 1);
-    out_code[max_len - 1] = '\0';
-    return 1;
+    /* Try to read game code from UMD disc.
+     * Returns 0 if no disc is mounted or file is missing.
+     * The caller must handle the 0 case gracefully - do NOT
+     * add a fallback here, it causes crashes on unsupported games. */
+    return detect_from_umd_data(out_code, max_len);
 }
