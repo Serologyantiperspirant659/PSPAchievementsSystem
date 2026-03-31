@@ -4,12 +4,47 @@
 
 #include "popup.h"
 
-static volatile int popup_active = 0;
-static volatile int popup_y = -50;
-static unsigned int popup_start_time = 0;
-static char popup_title[48];
-static char popup_desc[48];
+/* ============================================================
+ * POPUP QUEUE SYSTEM (Ring Buffer)
+ * Prevents achievements from overwriting each other if unlocked
+ * at the exact same time.
+ * ============================================================ */
+#define MAX_POPUP_QUEUE 10
 
+typedef struct {
+    char title[48];
+    char desc[48];
+} PopupItem;
+
+static PopupItem g_popup_queue[MAX_POPUP_QUEUE];
+static volatile int g_queue_head = 0;
+static volatile int g_queue_tail = 0;
+
+/* ============================================================
+ * CURRENT POPUP STATE
+ * ============================================================ */
+
+/* Animation phases and their durations in milliseconds */
+#define POPUP_SLIDE_DOWN_MS   400   /* Slide in duration  */
+#define POPUP_HOLD_MS         3500  /* Hold on screen     */
+#define POPUP_SLIDE_UP_MS     400   /* Slide out duration */
+#define POPUP_TOTAL_MS        (POPUP_SLIDE_DOWN_MS + POPUP_HOLD_MS + POPUP_SLIDE_UP_MS)
+
+/* Minimum ms that must pass before update() will deactivate the
+ * current popup and load the next one from the queue.
+ * Must be >= POPUP_TOTAL_MS to guarantee the full animation plays. */
+#define POPUP_MIN_DISPLAY_MS  POPUP_TOTAL_MS
+
+static volatile int  popup_active     = 0;
+static volatile int  popup_y          = -50;
+static volatile int  popup_finished   = 0; /* Set to 1 when animation is done */
+static unsigned int  popup_start_time = 0;
+static char          popup_title[48];
+static char          popup_desc[48];
+
+/* ============================================================
+ * 8x8 BITMAP FONT DATA (ASCII 32 to 126)
+ * ============================================================ */
 static const unsigned char font_data[95][8] = {
     {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},{0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x00},
     {0x6C,0x6C,0x24,0x00,0x00,0x00,0x00,0x00},{0x6C,0xFE,0x6C,0x6C,0xFE,0x6C,0x00,0x00},
@@ -61,6 +96,9 @@ static const unsigned char font_data[95][8] = {
     {0x31,0x6B,0x46,0x00,0x00,0x00,0x00,0x00},
 };
 
+/* ============================================================
+ * 16-BIT (RGB 565) DRAWING FUNCTIONS
+ * ============================================================ */
 static unsigned short make_565(unsigned int r, unsigned int g, unsigned int b) {
     return (unsigned short)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
 }
@@ -100,65 +138,171 @@ static void draw_text_16(unsigned short *fb, int bw, int x, int y, unsigned shor
     }
 }
 
+/* ============================================================
+ * 32-BIT (ABGR 8888) DRAWING FUNCTIONS
+ * ============================================================ */
+static unsigned int make_8888(unsigned int r, unsigned int g, unsigned int b) {
+    return 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+
+static void fill_rect_32(unsigned int *fb, int bw, int x, int y, int w, int h, unsigned int c) {
+    for (int ry = 0; ry < h; ry++) {
+        int py = y + ry;
+        if (py < 0 || py >= 272) continue;
+        for (int rx = 0; rx < w; rx++) {
+            int px = x + rx;
+            if (px < 0 || px >= 480) continue;
+            fb[py * bw + px] = c;
+        }
+    }
+}
+
+static void draw_text_32(unsigned int *fb, int bw, int x, int y, unsigned int c, const char *s) {
+    int cx = x;
+    while (*s) {
+        if (*s >= 32 && *s <= 126) {
+            int idx = *s - 32;
+            for (int r = 0; r < 8; r++) {
+                unsigned char row = font_data[idx][r];
+                if (!row) continue;
+                int py = y + r;
+                if (py < 0 || py >= 272) continue;
+                for (int col = 0; col < 8; col++) {
+                    if (row & (0x80 >> col)) {
+                        int px = cx + col;
+                        if (px >= 0 && px < 480) fb[py * bw + px] = c;
+                    }
+                }
+            }
+        }
+        cx += 8;
+        s++;
+    }
+}
+
+/* ============================================================
+ * MAIN POPUP RENDERING LOGIC
+ * ============================================================ */
 static void draw_popup(void *fb, int bw, int pf, int y, const char *title, const char *desc) {
     int x = 52, w = 376, h = 46;
 
-    if (pf == 0) { /* 16-bit 565 - Most games use this */
+    if (pf == 0) {
         unsigned short *fb16 = (unsigned short *)fb;
-        unsigned short black  = make_565(16, 16, 16);
-        unsigned short gold   = make_565(255, 201, 92);
-        unsigned short blue   = make_565(106, 196, 239);
-        unsigned short white  = make_565(255, 255, 255);
-        unsigned short gray   = make_565(208, 208, 208);
+        unsigned short black = make_565(16,  16,  16 );
+        unsigned short gold  = make_565(255, 201, 92 );
+        unsigned short blue  = make_565(106, 196, 239);
+        unsigned short white = make_565(255, 255, 255);
+        unsigned short gray  = make_565(208, 208, 208);
 
-        fill_rect_16(fb16, bw, x, y, w, h, black);
-        fill_rect_16(fb16, bw, x, y, w, 2, gold);
-        fill_rect_16(fb16, bw, x, y+h-2, w, 2, gold);
+        fill_rect_16(fb16, bw, x,   y,       w, h,  black);
+        fill_rect_16(fb16, bw, x,   y,       w, 2,  gold);
+        fill_rect_16(fb16, bw, x,   y+h-2,   w, 2,  gold);
         draw_text_16(fb16, bw, x+10, y+7,  blue,  "ACHIEVEMENT UNLOCKED");
         draw_text_16(fb16, bw, x+10, y+19, white, title);
         draw_text_16(fb16, bw, x+10, y+31, gray,  desc);
     }
+    else if (pf == 3) {
+        unsigned int *fb32 = (unsigned int *)fb;
+        unsigned int black = make_8888(16,  16,  16 );
+        unsigned int gold  = make_8888(255, 201, 92 );
+        unsigned int blue  = make_8888(106, 196, 239);
+        unsigned int white = make_8888(255, 255, 255);
+        unsigned int gray  = make_8888(208, 208, 208);
+
+        fill_rect_32(fb32, bw, x,   y,       w, h,  black);
+        fill_rect_32(fb32, bw, x,   y,       w, 2,  gold);
+        fill_rect_32(fb32, bw, x,   y+h-2,   w, 2,  gold);
+        draw_text_32(fb32, bw, x+10, y+7,  blue,  "ACHIEVEMENT UNLOCKED");
+        draw_text_32(fb32, bw, x+10, y+19, white, title);
+        draw_text_32(fb32, bw, x+10, y+31, gray,  desc);
+    }
 }
 
+/* ============================================================
+ * EXPORTED API
+ * ============================================================ */
+
 void pach_popup_init(void) {
-    popup_active = 0;
-    popup_y = -50;
+    popup_active     = 0;
+    popup_finished   = 0;
+    popup_y          = -50;
     popup_start_time = 0;
+    g_queue_head     = 0;
+    g_queue_tail     = 0;
     memset(popup_title, 0, sizeof(popup_title));
-    memset(popup_desc, 0, sizeof(popup_desc));
+    memset(popup_desc,  0, sizeof(popup_desc));
 }
 
 void pach_popup_show(const char *title, const char *desc) {
-    if (!title) title = "";
-    if (!desc)  desc  = "";
-    strncpy(popup_title, title, sizeof(popup_title) - 1);
-    popup_title[sizeof(popup_title) - 1] = '\0';
-    strncpy(popup_desc, desc, sizeof(popup_desc) - 1);
-    popup_desc[sizeof(popup_desc) - 1] = '\0';
-    popup_start_time = sceKernelGetSystemTimeLow();
-    popup_y = -50;
-    popup_active = 1;
+    int next_head = (g_queue_head + 1) % MAX_POPUP_QUEUE;
+
+    /* Drop silently if queue is full */
+    if (next_head == g_queue_tail) return;
+
+    strncpy(g_popup_queue[g_queue_head].title, title ? title : "", 47);
+    g_popup_queue[g_queue_head].title[47] = '\0';
+
+    strncpy(g_popup_queue[g_queue_head].desc, desc ? desc : "", 47);
+    g_popup_queue[g_queue_head].desc[47] = '\0';
+
+    g_queue_head = next_head;
 }
 
 void pach_popup_update(void) {
-    if (!popup_active) return;
+    if (!popup_active) {
+        /* Only load the next popup if queue has something */
+        if (g_queue_head == g_queue_tail) return;
+
+        strncpy(popup_title, g_popup_queue[g_queue_tail].title, sizeof(popup_title) - 1);
+        popup_title[sizeof(popup_title) - 1] = '\0';
+
+        strncpy(popup_desc, g_popup_queue[g_queue_tail].desc, sizeof(popup_desc) - 1);
+        popup_desc[sizeof(popup_desc) - 1] = '\0';
+
+        g_queue_tail     = (g_queue_tail + 1) % MAX_POPUP_QUEUE;
+        popup_start_time = sceKernelGetSystemTimeLow();
+        popup_y          = -50;
+        popup_finished   = 0;
+        popup_active     = 1;
+        return;
+    }
+
+    /* Animate the current popup */
     unsigned int now = sceKernelGetSystemTimeLow();
     int ms = (int)((now - popup_start_time) / 1000);
-    if      (ms < 500)  popup_y = -50 + (56 * ms) / 500;
-    else if (ms < 4500) popup_y = 6;
-    else if (ms < 5000) popup_y = 6 - (56 * (ms - 4500)) / 500;
-    else { popup_active = 0; popup_y = -50; }
+
+    if (ms < POPUP_SLIDE_DOWN_MS) {
+        /* Slide in: from y=-50 to y=6 */
+        popup_y = -50 + (56 * ms) / POPUP_SLIDE_DOWN_MS;
+    }
+    else if (ms < POPUP_SLIDE_DOWN_MS + POPUP_HOLD_MS) {
+        /* Hold */
+        popup_y = 6;
+    }
+    else if (ms < POPUP_TOTAL_MS) {
+        /* Slide out: from y=6 to y=-50 */
+        int t = ms - POPUP_SLIDE_DOWN_MS - POPUP_HOLD_MS;
+        popup_y = 6 - (56 * t) / POPUP_SLIDE_UP_MS;
+    }
+    else {
+        /* Animation finished - deactivate and let next update() load next item */
+        popup_active   = 0;
+        popup_finished = 1;
+        popup_y        = -50;
+    }
 }
 
 void pach_popup_draw_current(void) {
     if (!popup_active) return;
     if (popup_y < -48) return;
 
-    void *fb = 0;
+    void *fb = NULL;
     int bw = 512, pf = 3;
 
     sceDisplayGetFrameBuf(&fb, &bw, &pf, PSP_DISPLAY_SETBUF_IMMEDIATE);
     if (fb) draw_popup(fb, bw, pf, popup_y, popup_title, popup_desc);
 }
 
-int pach_popup_is_active(void) { return popup_active ? 1 : 0; }
+int pach_popup_is_active(void) {
+    return (popup_active || g_queue_head != g_queue_tail) ? 1 : 0;
+}

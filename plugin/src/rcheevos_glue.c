@@ -151,11 +151,11 @@ static RC_CondType parse_cond_prefix(const char **ps)
             case 'O': type = RC_COND_OR_NEXT;       break;
             case 'T': type = RC_COND_TRIGGER;       break;
             case 'M': type = RC_COND_MEASURED;      break;
-            case 'Q': type = RC_COND_MEASURED_IF;    break;
-            case 'A': type = RC_COND_ADD_SOURCE;     break;
-            case 'I': type = RC_COND_ADD_ADDRESS;    break;
+            case 'Q': type = RC_COND_MEASURED_IF;   break;
+            case 'A': type = RC_COND_ADD_SOURCE;    break;
+            case 'I': type = RC_COND_ADD_ADDRESS;   break;
             case 'Z': type = RC_COND_RESET_NEXT_IF; break;
-            case 'B': type = RC_COND_SUB_SOURCE;     break;
+            case 'B': type = RC_COND_SUB_SOURCE;    break;
             default:  return RC_COND_STANDARD;
         }
         *ps = s + 2;
@@ -450,8 +450,8 @@ static int evaluate_group(RC_CondGroup *grp, RC_RuntimeState *state,
         }
 
         switch (cond->type) {
-            case RC_COND_ADD_SOURCE:  add_source = lv; continue;
-            case RC_COND_SUB_SOURCE: add_source = -lv; continue;
+            case RC_COND_ADD_SOURCE:  add_source =  lv; continue;
+            case RC_COND_SUB_SOURCE:  add_source = -lv; continue;
             case RC_COND_ADD_ADDRESS: add_address = (unsigned int)lv; continue;
             default: break;
         }
@@ -559,6 +559,20 @@ void rc_glue_init(RC_RuntimeState *state)
     memset(state, 0, sizeof(*state));
 }
 
+/* ============================================================
+ * MAIN EVALUATION FUNCTION
+ *
+ * KEY FIX: Collect ALL achievements that fire this frame BEFORE
+ * updating delta snapshots. Previously we returned on the first
+ * unlock, which caused two problems:
+ *   1. A second simultaneous achievement was skipped silently.
+ *   2. delta snapshots were updated mid-scan, making the second
+ *      achievement invisible on the very next frame too.
+ *
+ * Now we do a full scan, collect up to RC_MAX_UNLOCKED_PER_FRAME
+ * winners, update deltas ONCE at the end, then return all of them.
+ * The caller (main.c) queues a popup + beep for each one.
+ * ============================================================ */
 RC_EvalResult rc_glue_update(PACH_LoadedGame *game,
                               PACH_ProfileGameProgress *progress,
                               RC_RuntimeState *state,
@@ -566,12 +580,12 @@ RC_EvalResult rc_glue_update(PACH_LoadedGame *game,
                               int num_parsed)
 {
     RC_EvalResult result;
-    result.unlocked_index = -1;
-    result.unlocked_def = NULL;
+    result.unlocked_count = 0;
 
     if (!game || !progress || !state || !parsed_cache) return result;
     if (!game->loaded) return result;
 
+    /* Register memory references once on first call */
     static int refs_registered = 0;
     if (!refs_registered) {
         for (int i = 0; i < num_parsed; i++) {
@@ -581,20 +595,31 @@ RC_EvalResult rc_glue_update(PACH_LoadedGame *game,
         refs_registered = 1;
     }
 
+    /* Full scan: collect ALL achievements that fire this frame.
+     * Do NOT update delta snapshots inside the loop - that would
+     * corrupt the delta state for achievements evaluated later. */
     for (int i = 0; i < game->header.num_achievements && i < num_parsed; i++) {
         if (pach_profile_is_unlocked(progress, i)) continue;
         if (!parsed_cache[i].is_active) continue;
 
         if (evaluate_achievement(&parsed_cache[i], state)) {
+            /* Mark as unlocked in profile and deactivate */
             pach_profile_set_unlocked(progress, i);
             parsed_cache[i].is_active = 0;
-            result.unlocked_index = i;
-            result.unlocked_def = &game->achievements[i];
-            update_delta_snapshots(state);
-            return result;
+
+            /* Add to result batch if there is space */
+            if (result.unlocked_count < RC_MAX_UNLOCKED_PER_FRAME) {
+                result.unlocked_indices[result.unlocked_count] = i;
+                result.unlocked_defs[result.unlocked_count]    = &game->achievements[i];
+                result.unlocked_count++;
+            }
         }
     }
 
+    /* Update delta snapshots ONCE after the full scan.
+     * All achievements this frame evaluated against the same
+     * consistent memory snapshot. */
     update_delta_snapshots(state);
+
     return result;
 }

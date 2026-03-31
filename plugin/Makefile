@@ -1,5 +1,7 @@
 TARGET = PspAchievements
-OBJS = src/main.o src/profile.o src/game_db.o src/game_map.o src/detect.o src/popup.o src/memory.o src/rcheevos_glue.o
+OBJS = src/main.o src/profile.o src/game_db.o src/game_map.o \
+       src/detect.o src/popup.o src/memory.o src/rcheevos_glue.o \
+       src/beep.o
 
 BUILD_PRX = 1
 PRX_EXPORTS = exports.exp
@@ -10,8 +12,8 @@ USE_KERNEL_LIBS = 1
 INCDIR = src
 CFLAGS = -O2 -G0 -Wall -Wextra -std=c99
 LDFLAGS =
-# Добавили -lpsprtc для работы со временем!
-LIBS = -lpspdisplay -lpspctrl -lpsprtc
+# Added -lpspaudio for CPU-generated beep sound
+LIBS = -lpspdisplay -lpspctrl -lpsprtc -lpspaudio
 
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
